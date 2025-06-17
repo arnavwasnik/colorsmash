@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chromatic Chaos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      /* background: #0a0f1f; */
+      background-image: url(bi.jpg);
+      background-repeat: no-repeat;
+      background-size: cover;
+      color: #ffffff;
+      height: 100%;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #scoreboard {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 18px;
+      /* background: rgba(0,0,0,0.5); */
+      background-image: "bi.jpg";
+      padding: 12px;
+      border: 1px solid #00ffe7;
+      border-radius: 10px;
+      z-index: 10;
+    }
+
+    #scoreboard span {
+      font-weight: bold;
+    }
+
+    #targetColorCircle {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      border-radius: 50%;
+      margin-left: 5px;
+      border: 1px solid white;
+    }
+
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(45deg, #ffffff, #feffff);
+      color: black;
+      padding: 18px 36px;
+      font-size: 24px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      z-index: 10;
+      box-shadow: 0 0 15px #00ffe7;
+      transition: transform 0.3s;
+    }
+
+    #startBtn:hover {
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+
+    #endScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      /* background: rgba(10, 15, 31, 0.95); */
+      background-image: url(endbg.jpg);
+      background-size: cover;
+      background-repeat: no-repeat;
+      display: none;
+      color: #ffffff;
+      text-align: center;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 20;
+    }
+
+    #endScreen h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+
+    #endScreen button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 18px;
+      /* background-color: #00ffe7; */
+      color: black;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      tr
+    }
+
+    #muteBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      /* background: rgba(0, 255, 231, 0.2); */
+      border: 1px solid #00ffe7;
+      border-radius: 8px;
+      color: #00ffe7;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    @media (max-width: 600px) {
+      #scoreboard {
+        font-size: 16px;
+        padding: 10px;
+      }
+
+      #startBtn {
+        font-size: 20px;
+        padding: 14px 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scoreboard">
+   Target: <div id="targetColorCircle"></div><br/>
+   Score: <span id="score">0</span><br/>
+   Time: <span id="time">60</span><br/>
+   Level: <span id="level">1</span>
+</div>
+
+<button id="startBtn"> Start Game</button>
+<button id="muteBtn">🔊</button>
+
+<div id="endScreen">
+  <h1> Time’s Up!</h1>
+  <p>  Final Score: <span id="finalScore">0</span></p>
+  <p>  Final Level: <span id="finalLevel">1</span></p>
+  <button onclick="startGame()"> Restart</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- Sound Effects -->
+<audio id="startSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_127f2fe9b4.mp3" preload="auto"></audio>
+<audio id="successSound" src="popt.mp3" preload="auto"></audio>
+<audio id="failSound" src="errort.mp3" preload="auto"></audio>
+<audio id="bgMusic" src="bgm.mp3" preload="auto"></audio>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let score = 0, level = 1, timeLeft = 60, running = false;
+let targetColor = "red";
+const colors = ["red", "blue", "yellow", "lime", "magenta"];
+let circles = [];
+let timerInterval;
+
+const scoreEl = document.getElementById("score");
+const timeEl = document.getElementById("time");
+const levelEl = document.getElementById("level");
+const targetCircleEl = document.getElementById("targetColorCircle");
+
+const startSound = document.getElementById("startSound");
+const successSound = document.getElementById("successSound");
+const failSound = document.getElementById("failSound");
+const bgMusic = document.getElementById("bgMusic");
+const muteBtn = document.getElementById("muteBtn");
+
+let isMuted = false;
+
+muteBtn.onclick = () => {
+  isMuted = !isMuted;
+  bgMusic.muted = isMuted;
+  muteBtn.textContent = isMuted ? "🔇" : "🔊";
+};
+
+function resetUI() {
+  score = 0;
+  level = 1;
+  timeLeft = 60;
+  circles = [];
+  updateStats();
+  document.getElementById("endScreen").style.display = "none";
+  document.getElementById("startBtn").style.display = "none";
+}
+
+function setTargetColor() {
+  targetColor = colors[Math.floor(Math.random() * colors.length)];
+  targetCircleEl.style.backgroundColor = targetColor;
+}
+
+function updateStats() {
+  scoreEl.textContent = score;
+  levelEl.textContent = level;
+  timeEl.textContent = timeLeft;
+  targetCircleEl.style.backgroundColor = targetColor;
+}
+
+function spawnCircle() {
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  circles.push({
+    x: Math.random() * (canvas.width - 40) + 20,
+    y: -20,
+    radius: 25,
+    color: color,
+    speed: 2 + level
+  });
+}
+
+function drawGlossyCircle(c) {
+  const gradient = ctx.createRadialGradient(c.x - c.radius / 2, c.y - c.radius / 2, c.radius / 4, c.x, c.y, c.radius);
+  gradient.addColorStop(0, "#fff");
+  gradient.addColorStop(0.2, c.color);
+  gradient.addColorStop(1, "black");
+
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.closePath();
+}
+
+function handleTap(x, y) {
+  if (!running) return;
+  for (let i = 0; i < circles.length; i++) {
+    const c = circles[i];
+    const dx = x - c.x;
+    const dy = y - c.y;
+    if (Math.sqrt(dx * dx + dy * dy) < c.radius) {
+      if (c.color === targetColor) {
+        if (!isMuted) successSound.play();
+        score += 10;
+      } else {
+        if (!isMuted) failSound.play();
+        score -= 5;
+      }
+      circles.splice(i, 1);
+      updateStats();
+      if (score >= level * 100) {
+        level++;
+        setTargetColor();
+      }
+      break;
+    }
+  }
+}
+
+canvas.addEventListener("click", (e) => {
+  handleTap(e.clientX, e.clientY);
+});
+
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  handleTap(x, y);
+});
+
+function updateTimer() {
+  timeLeft--;
+  updateStats();
+  if (timeLeft <= 0) endGame();
+}
+
+function endGame() {
+  running = false;
+  clearInterval(timerInterval);
+  document.getElementById("finalScore").textContent = score;
+  document.getElementById("finalLevel").textContent = level;
+  document.getElementById("endScreen").style.display = "flex";
+}
+
+function gameLoop() {
+  if (!running) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (Math.random() < 0.02 + level * 0.01) spawnCircle();
+  for (let c of circles) {
+    c.y += c.speed;
+    drawGlossyCircle(c);
+  }
+  circles = circles.filter(c => c.y < canvas.height + 20);
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  resetUI();
+  setTargetColor();
+  if (!isMuted) {
+    bgMusic.play().catch(() => {});
+    startSound.play();
+  }
+  running = true;
+  timerInterval = setInterval(updateTimer, 1000);
+  gameLoop();
+}
+
+document.getElementById("startBtn").addEventListener("click", startGame);
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
